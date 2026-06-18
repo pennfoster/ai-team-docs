@@ -5,7 +5,7 @@
 //   4. Copy the four data-* values it generates into the fields below.
 export const giscusConfig = {
   repo: 'pennfoster/ai-team-docs',
-  repoId: 'REPLACE_WITH_REPO_ID',
-  category: 'Comments',
-  categoryId: 'REPLACE_WITH_CATEGORY_ID'
+  repoId: 'R_kgDOS-lRPg',
+  category: 'Ideas',
+  categoryId: 'DIC_kwDOS-lRPs4C_bIH'
 }
