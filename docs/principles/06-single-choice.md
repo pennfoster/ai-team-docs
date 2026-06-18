@@ -56,6 +56,222 @@ Same principle, opposite keyword verdict — which is the entire reason dialects
 - [ ] Does a branch select a case and then reach *outward* to a lower-level module? → dependency magnet; make the choice once at the boundary and depend on an abstraction.
 - [ ] When you add a variant, how many files must change? If the answer is more than "one entry," the variants are not in one home yet.
 
+## Examples
+
+A notification `channel` — `email | sms | push` — drives behavior. The question is not whether the branch is ugly; it is *how many places know the list of channels.*
+
+**Bad — the discriminator is branched on in three places.** The icon, the label, and the send logic each re-list the variants. The invariant "every site handles every channel" is real but unenforced: add a fourth channel and you must find all three sites, and a missed one is not a crash — it is a notification that renders with a blank icon or silently never sends. Note the dialects diverge in *spelling* but share the defect: TypeScript scatters object/`else if` branches, C# scatters `switch` expressions on one `enum`.
+
+<CodeToggle>
+<template #ts>
+
+```typescript
+const channelIcon = (channel: Channel) =>
+  channel === 'email'
+    ? 'mail'
+    : channel === 'sms'
+      ? 'message-circle'
+      : 'bell'
+
+const channelLabel = (channel: Channel) =>
+  channel === 'email'
+    ? 'Email'
+    : channel === 'sms'
+      ? 'Text message'
+      : 'Push notification'
+
+const send = (channel: Channel, notification: Notification) =>
+  channel === 'email'
+    ? sendEmail(notification)
+    : channel === 'sms'
+      ? sendSms(notification)
+      : sendPush(notification)
+```
+
+</template>
+<template #csharp>
+
+```csharp
+// three switch expressions on one enum — the same Single Choice violation
+public static string Icon(Channel channel) => channel switch
+{
+    Channel.Email => "mail",
+    Channel.Sms   => "message-circle",
+    Channel.Push  => "bell",
+};
+
+public static string Label(Channel channel) => channel switch
+{
+    Channel.Email => "Email",
+    Channel.Sms   => "Text message",
+    Channel.Push  => "Push notification",
+};
+
+public static Task Send(Channel channel, Notification notification) => channel switch
+{
+    Channel.Email => SendEmail(notification),
+    Channel.Sms   => SendSms(notification),
+    Channel.Push  => SendPush(notification),
+};
+```
+
+</template>
+</CodeToggle>
+
+Three modules each independently know the full list of channels, and each branch "points outward" to a low-level sender — the dependency-magnet shape from [the dependency section](#it-is-also-a-dependency-problem):
+
+```mermaid
+flowchart TD
+  subgraph bad ["Bad — list of variants known in 3 places"]
+    I["channelIcon()<br/>email · sms · push"]
+    L["channelLabel()<br/>email · sms · push"]
+    S["send()<br/>email · sms · push"]
+  end
+  S --> sendEmail & sendSms & sendPush
+  classDef dup fill:#fde2e2,stroke:#c0392b,color:#000;
+  class I,L,S dup;
+```
+
+**Good — one home for the variant list.** Everything known about a channel lives in one entry. Consuming code resolves the entry and uses it; it never branches on `channel` again. Adding a channel is **one new entry**, and a missing key (or, in C#, the compiler's exhaustiveness check at the single dictionary) tells you immediately if you forgot the behavior.
+
+<CodeToggle>
+<template #ts>
+
+```typescript
+interface ChannelStrategy {
+  icon: string
+  label: string
+  send: (notification: Notification) => Promise<void>
+}
+
+const channels: Record<Channel, ChannelStrategy> = {
+  email: {
+    icon: 'mail',
+    label: 'Email',
+    send: (notification) => sendEmail(notification),
+  },
+  sms: {
+    icon: 'message-circle',
+    label: 'Text message',
+    send: (notification) => sendSms(notification),
+  },
+  push: {
+    icon: 'bell',
+    label: 'Push notification',
+    send: (notification) => sendPush(notification),
+  },
+}
+```
+
+</template>
+<template #csharp>
+
+```csharp
+public sealed record ChannelStrategy(
+    string Icon,
+    string Label,
+    Func<Notification, Task> Send);
+
+public static class Channels
+{
+    public static readonly FrozenDictionary<Channel, ChannelStrategy> Strategies =
+        new Dictionary<Channel, ChannelStrategy>
+        {
+            [Channel.Email] = new("mail", "Email", SendEmail),
+            [Channel.Sms]   = new("message-circle", "Text message", SendSms),
+            [Channel.Push]  = new("bell", "Push notification", SendPush),
+        }.ToFrozenDictionary();
+}
+```
+
+</template>
+</CodeToggle>
+
+Now the consumers resolve one entry; the variant list has a single owner and the selection happens once, at the boundary:
+
+```mermaid
+flowchart TD
+  Reg["channels (strategy registry)<br/>email · sms · push"]:::owner
+  UI["icon/label rendering"] -->|"channels[c]"| Reg
+  Dispatch["dispatcher (Effect edge)"] -->|"channels[c].send()"| Reg
+  classDef owner fill:#e2f0d9,stroke:#27ae60,color:#000;
+```
+
+### Worked scenario: adding a "webhook" channel
+
+Marketing asks for a fourth channel, `webhook`. This single conceptual change is the test, and the diff sizes tell the whole story.
+
+In the **scattered** shape it is **shotgun surgery** — three edits across three functions, and nothing fails loudly if you forget one:
+
+<CodeToggle>
+<template #csharp>
+
+```diff
+  public static string Icon(Channel channel) => channel switch {
+      Channel.Email => "mail", Channel.Sms => "message-circle", Channel.Push => "bell",
++     Channel.Webhook => "webhook",
+  };
+  public static string Label(Channel channel) => channel switch {
+      Channel.Email => "Email", Channel.Sms => "Text message", Channel.Push => "Push notification",
++     Channel.Webhook => "Webhook",
+  };
+  public static Task Send(Channel channel, Notification n) => channel switch {
+      Channel.Email => SendEmail(n), Channel.Sms => SendSms(n), Channel.Push => SendPush(n),
++     Channel.Webhook => PostWebhook(n),   // ← forget this arm and it won't compile (C#'s safety net);
+  };                                        //   in TS the ternary silently falls through to push
+```
+
+</template>
+<template #ts>
+
+```diff
+  const channelIcon = (channel: Channel) =>
+-   channel === 'email' ? 'mail' : channel === 'sms' ? 'message-circle' : 'bell'
++   channel === 'email' ? 'mail' : channel === 'sms' ? 'message-circle'
++     : channel === 'webhook' ? 'webhook' : 'bell'
+  // …and the same surgery again in channelLabel…
+  const send = (channel: Channel, notification: Notification) =>
+-   channel === 'email' ? sendEmail(notification) : channel === 'sms' ? sendSms(notification) : sendPush(notification)
++   channel === 'email' ? sendEmail(notification) : channel === 'sms' ? sendSms(notification)
++     : channel === 'webhook' ? postWebhook(notification) : sendPush(notification)
+  // ← forget the send branch and a webhook silently falls through to sendPush
+```
+
+</template>
+</CodeToggle>
+
+In the **consolidated** shape it is **one new entry**, open for extension and closed for modification; the consuming code (`channels[channel].send(notification)`) never changes because it never branched:
+
+<CodeToggle>
+<template #csharp>
+
+```diff
+  new Dictionary<Channel, ChannelStrategy>
+  {
+      [Channel.Email] = new("mail", "Email", SendEmail),
+      [Channel.Sms]   = new("message-circle", "Text message", SendSms),
+      [Channel.Push]  = new("bell", "Push notification", SendPush),
++     [Channel.Webhook] = new("webhook", "Webhook", PostWebhook),
+  }.ToFrozenDictionary();
+```
+
+</template>
+<template #ts>
+
+```diff
+  const channels: Record<Channel, ChannelStrategy> = {
+    email: { icon: 'mail', label: 'Email', send: sendEmail },
+    sms: { icon: 'message-circle', label: 'Text message', send: sendSms },
+    push: { icon: 'bell', label: 'Push notification', send: sendPush },
++   webhook: { icon: 'webhook', label: 'Webhook', send: postWebhook },
+  }
+```
+
+</template>
+</CodeToggle>
+
+The selection happens **once, at the boundary**: the [Effect edge](02-layers.md) resolves the strategy and the core depends only on the `ChannelStrategy` interface, not on the `channel` discriminator. That is why Single Choice and the [dependency rule](02-layers.md) are the same discipline from two sides — the variant list has one owner, and the case-selection happens once instead of leaking into every layer that touches a notification.
+
 ## Where to go next
 
 - [Layers](02-layers.md) — why the choice belongs at the boundary, and the dependency rule it protects.
