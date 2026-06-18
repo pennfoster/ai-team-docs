@@ -49,7 +49,7 @@ export default defineConfig({
       provider: 'local'
     },
     editLink: {
-      pattern: 'https://github.com/penn-foster/ai-team-docs/edit/main/docs/:path',
+      pattern: 'https://github.com/pennfoster/ai-team-docs/edit/main/docs/:path',
       text: 'Propose a change to this page'
     }
   }

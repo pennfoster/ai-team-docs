@@ -4,7 +4,7 @@
 //   3. Enter the repo on giscus.app, choose "pathname" mapping and that category.
 //   4. Copy the four data-* values it generates into the fields below.
 export const giscusConfig = {
-  repo: 'penn-foster/ai-team-docs',
+  repo: 'pennfoster/ai-team-docs',
   repoId: 'REPLACE_WITH_REPO_ID',
   category: 'Comments',
   categoryId: 'REPLACE_WITH_CATEGORY_ID'
