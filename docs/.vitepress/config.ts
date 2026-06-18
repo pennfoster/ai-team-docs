@@ -1,18 +1,24 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: 'Engineering Standards',
   description: 'Org-wide code-quality standards across every language we build.',
   cleanUrls: true,
   lastUpdated: true,
   themeConfig: {
     nav: [
+      { text: 'Why', link: '/why' },
       { text: 'Delivery Metrics', link: '/enforcement/delivery-metrics' },
       { text: 'Principles', link: '/principles/01-readiness-for-change' },
       { text: 'Dialects', link: '/dialects/typescript' },
       { text: 'Enforcement', link: '/enforcement/overview' }
     ],
     sidebar: [
+      {
+        text: 'Why These Documents',
+        link: '/why'
+      },
       {
         text: 'Delivery Metrics',
         link: '/enforcement/delivery-metrics'
@@ -56,4 +62,4 @@ export default defineConfig({
       text: 'Propose a change to this page'
     }
   }
-})
+}))
