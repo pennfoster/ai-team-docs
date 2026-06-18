@@ -14,6 +14,10 @@ export default defineConfig({
     ],
     sidebar: [
       {
+        text: 'Delivery Metrics',
+        link: '/enforcement/delivery-metrics'
+      },
+      {
         text: 'Principles',
         collapsed: false,
         items: [
@@ -40,8 +44,7 @@ export default defineConfig({
           { text: 'Overview', link: '/enforcement/overview' },
           { text: 'TypeScript Tooling', link: '/enforcement/typescript-tooling' },
           { text: 'C# / .NET Tooling', link: '/enforcement/csharp-tooling' },
-          { text: 'Adoption', link: '/enforcement/adoption' },
-          { text: 'Delivery Metrics', link: '/enforcement/delivery-metrics' }
+          { text: 'Adoption', link: '/enforcement/adoption' }
         ]
       }
     ],
